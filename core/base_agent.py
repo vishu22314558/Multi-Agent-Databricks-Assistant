@@ -7,8 +7,36 @@ from typing import Any, Dict, List, Optional, Callable
 import logging
 import time
 
-from langchain_community.chat_models import ChatOllama
-from langchain.schema import HumanMessage, SystemMessage, AIMessage
+try:
+    # Try new langchain-ollama package first
+    from langchain_ollama import ChatOllama
+except ImportError:
+    # Fall back to community package
+    from langchain_community.chat_models import ChatOllama
+
+try:
+    # Try new location first
+    from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
+except ImportError:
+    try:
+        # Try alternate location
+        from langchain.schema.messages import HumanMessage, SystemMessage, AIMessage
+    except ImportError:
+        # Last resort - define simple message classes
+        class HumanMessage:
+            def __init__(self, content: str):
+                self.content = content
+                self.type = "human"
+        
+        class SystemMessage:
+            def __init__(self, content: str):
+                self.content = content
+                self.type = "system"
+        
+        class AIMessage:
+            def __init__(self, content: str):
+                self.content = content
+                self.type = "ai"
 
 from core.message import (
     AgentType, AgentMessage, TaskRequest, TaskResponse, 
@@ -136,9 +164,11 @@ Guidelines:
         
         # Add conversation history
         for msg in context.get_recent_messages(self.settings.agents.memory_window):
-            if msg.role == MessageRole.USER:
+            # Handle both enum and string values for role
+            role = msg.role.value if hasattr(msg.role, 'value') else msg.role
+            if role == "user":
                 messages.append(HumanMessage(content=msg.content))
-            elif msg.role == MessageRole.ASSISTANT:
+            elif role == "assistant":
                 messages.append(AIMessage(content=msg.content))
         
         # Build current query with context

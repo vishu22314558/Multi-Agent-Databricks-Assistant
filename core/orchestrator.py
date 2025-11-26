@@ -4,7 +4,7 @@ Orchestrator Agent - Routes queries and coordinates multi-agent workflows.
 
 import logging
 import re
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 from core.base_agent import BaseAgent
 from core.agent_registry import AgentRegistry
@@ -15,6 +15,13 @@ from core.message import (
 from config.settings import get_settings
 
 logger = logging.getLogger(__name__)
+
+
+def get_enum_value(val: Union[str, AgentType]) -> str:
+    """Get string value from enum or string."""
+    if hasattr(val, 'value'):
+        return val.value
+    return str(val)
 
 
 class OrchestratorAgent(BaseAgent):
@@ -57,7 +64,7 @@ class OrchestratorAgent(BaseAgent):
         # Analyze the query and decide routing
         routing = self._analyze_and_route(query, context)
         
-        logger.info(f"Routing decision: {routing.primary_agent.value}, "
+        logger.info(f"Routing decision: {get_enum_value(routing.primary_agent)}, "
                    f"collaboration: {routing.requires_collaboration}")
         
         # Execute based on routing decision
@@ -74,7 +81,7 @@ class OrchestratorAgent(BaseAgent):
         context.add_message(Message(
             role=MessageRole.ASSISTANT,
             content=response.result or "",
-            metadata={"agent": routing.primary_agent.value}
+            metadata={"agent": get_enum_value(routing.primary_agent)}
         ))
         
         return response
@@ -125,7 +132,7 @@ class OrchestratorAgent(BaseAgent):
             primary_agent=primary_agent,
             secondary_agents=secondary_agents,
             requires_collaboration=requires_collaboration or len(secondary_agents) > 0,
-            reasoning=f"Query matched {primary_agent.value} based on intent analysis",
+            reasoning=f"Query matched {get_enum_value(primary_agent)} based on intent analysis",
             workflow_steps=workflow_steps,
         )
     
@@ -173,10 +180,10 @@ Respond with ONLY the agent name (schema/sql/pipeline/metadata/chat):"""
         secondary: List[AgentType],
     ) -> List[str]:
         """Build workflow steps for multi-agent tasks."""
-        steps = [f"Route to {primary.value} agent"]
+        steps = [f"Route to {get_enum_value(primary)} agent"]
         
         for agent in secondary:
-            steps.append(f"Delegate to {agent.value} agent")
+            steps.append(f"Delegate to {get_enum_value(agent)} agent")
         
         steps.append("Aggregate results and respond")
         
@@ -192,7 +199,7 @@ Respond with ONLY the agent name (schema/sql/pipeline/metadata/chat):"""
         agent = AgentRegistry.get(agent_type)
         
         if not agent:
-            logger.warning(f"Agent {agent_type.value} not found, falling back to chat")
+            logger.warning(f"Agent {get_enum_value(agent_type)} not found, falling back to chat")
             agent = AgentRegistry.get(AgentType.CHAT)
         
         if not agent:
@@ -225,8 +232,8 @@ Respond with ONLY the agent name (schema/sql/pipeline/metadata/chat):"""
         primary_response = self._execute_single_agent(
             query, routing.primary_agent, context
         )
-        results.append(f"**{routing.primary_agent.value.title()} Agent:**\n{primary_response.result}")
-        all_data[routing.primary_agent.value] = primary_response.data
+        results.append(f"**{get_enum_value(routing.primary_agent).title()} Agent:**\n{primary_response.result}")
+        all_data[get_enum_value(routing.primary_agent)] = primary_response.data
         
         # Execute secondary agents with context from primary
         for agent_type in routing.secondary_agents:
@@ -239,14 +246,14 @@ Respond with ONLY the agent name (schema/sql/pipeline/metadata/chat):"""
                 secondary_query, agent_type, context
             )
             
-            results.append(f"\n**{agent_type.value.title()} Agent:**\n{secondary_response.result}")
-            all_data[agent_type.value] = secondary_response.data
+            results.append(f"\n**{get_enum_value(agent_type).title()} Agent:**\n{secondary_response.result}")
+            all_data[get_enum_value(agent_type)] = secondary_response.data
         
         # Aggregate results
         combined_result = "\n".join(results)
         
         return TaskResponse(
-            task_id=f"workflow-{routing.primary_agent.value}",
+            task_id=f"workflow-{get_enum_value(routing.primary_agent)}",
             status=TaskStatus.COMPLETED,
             result=combined_result,
             data=all_data,
@@ -273,7 +280,7 @@ Respond with ONLY the agent name (schema/sql/pipeline/metadata/chat):"""
 
 Original request: {original_query}
 
-Your specific task related to {agent_type.value}:"""
+Your specific task related to {get_enum_value(agent_type)}:"""
     
     def route_query(
         self,

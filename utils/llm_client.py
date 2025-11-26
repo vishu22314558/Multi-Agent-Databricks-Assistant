@@ -41,8 +41,19 @@ class OllamaClient:
             Dictionary with connection status
         """
         try:
-            models = self.client.list()
-            available_models = [m["name"] for m in models.get("models", [])]
+            response = self.client.list()
+            
+            # Handle different response formats (dict or object)
+            if hasattr(response, 'models'):
+                # Object-style response
+                models_list = response.models
+                available_models = [m.model if hasattr(m, 'model') else str(m) for m in models_list]
+            elif isinstance(response, dict):
+                # Dict-style response
+                models_list = response.get("models", [])
+                available_models = [m.get("name", m.get("model", str(m))) for m in models_list]
+            else:
+                available_models = []
             
             return {
                 "connected": True,
@@ -207,8 +218,16 @@ class OllamaClient:
             List of model names
         """
         try:
-            models = self.client.list()
-            return [m["name"] for m in models.get("models", [])]
+            response = self.client.list()
+            
+            # Handle different response formats
+            if hasattr(response, 'models'):
+                models_list = response.models
+                return [m.model if hasattr(m, 'model') else str(m) for m in models_list]
+            elif isinstance(response, dict):
+                models_list = response.get("models", [])
+                return [m.get("name", m.get("model", str(m))) for m in models_list]
+            return []
         except Exception as e:
             logger.error(f"Failed to list models: {e}")
             return []
